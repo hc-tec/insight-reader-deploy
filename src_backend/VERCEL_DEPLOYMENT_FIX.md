@@ -80,7 +80,41 @@ python -m uvicorn app.main:app --reload
 
 Check the console output for driver confirmation.
 
-### 3. Deploy to Vercel
+### 3. Initialize Database Tables
+
+**IMPORTANT**: Before deploying to Vercel, you must initialize the database tables in your PostgreSQL database.
+
+```bash
+# Set your production database URL
+export STORAGE_DATABASE_URL=postgresql://user:pass@your-db-host:5432/dbname
+
+# Run the initialization script
+cd backend
+python init_database.py
+```
+
+You should see:
+```
+============================================================
+Database Initialization Script
+============================================================
+
+[SUCCESS] Database tables created successfully!
+
+Created tables:
+  - users
+  - articles
+  - insights
+  - collections
+  - sparks
+  - meta_analysis
+  - thinking_lens
+  - insight_history
+  - preferences
+============================================================
+```
+
+### 4. Deploy to Vercel
 
 ```bash
 # Commit changes
@@ -91,11 +125,13 @@ git push
 # Vercel will auto-deploy
 ```
 
-### 4. Verify Deployment
+### 5. Verify Deployment
 
 Check Vercel deployment logs. You should see:
 ```
+[OK] Using PostgreSQL database
 [OK] Using psycopg (v3) driver for PostgreSQL
+[OK] Database initialization completed
 ```
 
 ## Environment Variables
@@ -129,6 +165,30 @@ For Serverless deployments, use managed PostgreSQL with connection pooling:
 4. **Railway**
    - Simple setup
    - Built-in PostgreSQL
+
+## Common Errors
+
+### Error: "relation 'users' does not exist"
+
+**Problem**: The database tables haven't been created yet.
+
+**Solution**:
+```bash
+# 1. Set your production database URL
+export STORAGE_DATABASE_URL=postgresql://user:pass@your-db:5432/dbname
+
+# 2. Initialize tables
+cd backend
+python init_database.py
+
+# 3. Redeploy
+git push
+```
+
+**Why this happens**:
+- PostgreSQL databases don't automatically create tables
+- The application tries to query tables that don't exist yet
+- You must run the initialization script first
 
 ## Troubleshooting
 

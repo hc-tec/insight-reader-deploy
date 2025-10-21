@@ -33,7 +33,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     """初始化数据库（创建所有表）"""
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[OK] Database tables initialized successfully")
+    except Exception as e:
+        print(f"[ERROR] Failed to initialize database: {str(e)}")
+        raise
 
 
 def get_db() -> Session:

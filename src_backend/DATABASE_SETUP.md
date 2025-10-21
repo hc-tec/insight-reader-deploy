@@ -129,9 +129,54 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ### 6. 初始化数据库表
 
-首次运行时，SQLAlchemy 会自动创建所有表。
+#### 方法1: 使用初始化脚本（推荐）
 
-如需手动初始化：
+```bash
+# 确保设置了环境变量
+export STORAGE_DATABASE_URL=postgresql://user:password@localhost:5432/insightreader
+
+# 运行初始化脚本
+python init_database.py
+```
+
+你会看到：
+```
+============================================================
+Database Initialization Script
+============================================================
+
+Database URL: postgresql://user:password@localhost:5432/insightreader
+Database Type: PostgreSQL
+
+Initializing database tables...
+
+[SUCCESS] Database tables created successfully!
+
+Created tables:
+  - users
+  - articles
+  - insights
+  - collections
+  - sparks
+  - meta_analysis
+  - thinking_lens
+  - insight_history
+  - preferences
+
+============================================================
+```
+
+#### 方法2: 启动应用自动初始化
+
+首次启动应用时，会自动尝试创建所有表：
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+应用启动后，会自动创建缺失的表。
+
+#### 方法3: 手动初始化（Python）
 
 ```python
 from app.db.database import init_db
@@ -249,13 +294,68 @@ OPENAI_API_KEY=sk-...
 SECRET_KEY=your-secret-key
 ```
 
-4. **验证部署**：
+4. **初始化数据库表**：
 
-部署成功后，检查日志应该看到：
+在首次部署到Vercel前，需要先初始化PostgreSQL数据库表。有两种方法：
+
+**方法A: 本地初始化（推荐）**
+
+```bash
+# 1. 在本地设置生产环境数据库URL
+export STORAGE_DATABASE_URL=postgresql://user:pass@your-prod-db:5432/dbname
+
+# 2. 运行初始化脚本
+cd backend
+python init_database.py
+```
+
+**方法B: 使用Vercel CLI**
+
+```bash
+# 1. 安装Vercel CLI
+npm i -g vercel
+
+# 2. 设置环境变量并运行初始化
+vercel env pull .env.production
+cd backend
+python init_database.py
+```
+
+5. **部署到Vercel**：
+
+```bash
+git add .
+git commit -m "Setup database"
+git push
+```
+
+6. **验证部署**：
+
+部署成功后，检查Vercel日志应该看到：
 ```
 [OK] Using PostgreSQL database
 [OK] Using psycopg (v3) driver for PostgreSQL
+[OK] Database initialization completed
 ```
+
+### 常见Vercel部署错误
+
+#### ❌ 错误: "relation 'users' does not exist"
+
+**原因**: 数据库表没有初始化
+
+**解决方案**:
+```bash
+# 本地连接到生产数据库并初始化
+export STORAGE_DATABASE_URL=postgresql://...
+python init_database.py
+```
+
+#### ❌ 错误: "No module named 'psycopg2'"
+
+**原因**: 使用了错误的PostgreSQL驱动
+
+**解决方案**: 确保 `requirements.txt` 包含 `psycopg==3.1.18`（已修复）
 
 ---
 
