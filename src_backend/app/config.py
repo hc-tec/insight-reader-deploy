@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # 数据库配置
     # 优先使用PostgreSQL（生产环境），否则使用SQLite（开发环境）
-    storage_database_url: str = ""  # 生产环境PostgreSQL连接URL
+    storage2_database_url: str = ""  # 生产环境PostgreSQL连接URL
     database_url: str = "sqlite:///./insightreader_v2.db"  # 默认SQLite（开发环境）
 
     # JWT 认证配置
@@ -70,9 +70,9 @@ class Settings(BaseSettings):
 # 全局配置实例
 settings = Settings()
 
-# 如果设置了STORAGE_DATABASE_URL，优先使用PostgreSQL
-if settings.storage_database_url:
-    settings.database_url = settings.storage_database_url
+# 如果设置了STORAGE2_DATABASE_URL，优先使用PostgreSQL
+if settings.storage2_database_url:
+    settings.database_url = settings.storage2_database_url
     logger.info("[OK] Using PostgreSQL database")
 else:
     logger.info(f"[OK] Using SQLite database: {settings.database_url}")
