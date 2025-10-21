@@ -1,23 +1,10 @@
-
-import sys
-import os
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent / "src_backend"
-
-sys.path.append(str(project_root))
-
-print(sys.path)
-
 """FastAPI 主应用"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from src_backend.app.config import settings
-from src_backend.app.api import insights, auth, collections, sparks, dashboard, analytics, meta_analysis, thinking_lens, articles, insight_history, sse, unified_analysis, preferences
-from src_backend.app.db.database import init_db
-
-
+from app.config import settings
+from app.api import insights, auth, collections, sparks, dashboard, analytics, meta_analysis, thinking_lens, articles, insight_history, sse, unified_analysis, preferences
+from app.db.database import init_db
 
 # 创建 FastAPI 应用
 app = FastAPI(
