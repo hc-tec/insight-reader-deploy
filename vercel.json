@@ -1,0 +1,22 @@
+
+
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nuxt",
+
+  "scripts": {
+    "build": "npx nuxi generate" 
+  },
+  
+  "functions": {
+    "api/main.py": {
+      "runtime": "python3.10",
+      "maxDuration": 15,
+      "memory": 1024
+    }
+  },
+  
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/main.py" }
+  ]
+}
