@@ -2,7 +2,6 @@
 
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nuxtjs",
   
   "functions": {
     "api/app/main.py": {
