@@ -1,0 +1,1 @@
+import{_ as o,c as t,o as a,a as e,I as c}from"#entry";const r={},l={class:"flex h-screen bg-background text-foreground"},n={class:"flex-1 overflow-y-auto relative"},_={class:"w-full p-0 relative z-10"};function d(s,f){return a(),t("div",l,[e("main",n,[e("div",_,[c(s.$slots,"default")])])])}const u=o(r,[["render",d]]);export{u as default};
