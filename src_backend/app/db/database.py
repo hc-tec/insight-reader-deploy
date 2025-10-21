@@ -35,6 +35,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+
 def init_db():
     """初始化数据库（创建所有表）"""
     try:
@@ -44,8 +45,12 @@ def init_db():
         logger.error(f"[ERROR] Failed to initialize database: {str(e)}")
         raise
 
-
+is_init = False
 def get_db() -> Session:
+    global is_init
+    if is_init == False:
+        init_db()
+        is_init = True
     """获取数据库会话（依赖注入）"""
     db = SessionLocal()
     try:
