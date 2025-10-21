@@ -4,13 +4,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   
   "functions": {
-    "api/app/main.py": {
+    "api/index.py": {
       "maxDuration": 15,
       "memory": 1024
     }
   },
   
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/app/main.py" }
+    { "source": "/api/(.*)", "destination": "/api/index.py" }
   ]
 }
