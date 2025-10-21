@@ -95,11 +95,19 @@ postgresql://用户名:密码@主机:端口/数据库名
 
 ### 4. 安装 Python 驱动
 
+系统会自动选择最佳的 PostgreSQL 驱动：
+
+- **psycopg (v3)**: 纯 Python 实现，优先使用，适合 Serverless 环境（Vercel、AWS Lambda 等）
+- **psycopg2-binary**: 编译版本，本地开发环境的备选方案
+
 ```bash
-pip install psycopg2-binary
+# 两个驱动都已包含在 requirements.txt 中
+pip install -r requirements.txt
 ```
 
-（已包含在 `requirements.txt` 中）
+**自动驱动选择逻辑**：
+1. 优先尝试使用 `psycopg` (v3) - 纯 Python，无需编译，适合 Serverless
+2. 如果 `psycopg` 不可用，回退到 `psycopg2-binary` - 适合本地开发
 
 ### 5. 启动应用
 
@@ -109,7 +117,14 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 启动时会看到：
 ```
-✅ 使用PostgreSQL数据库
+[OK] Using PostgreSQL database
+[OK] Using psycopg (v3) driver for PostgreSQL
+```
+
+或（如果使用 psycopg2）：
+```
+[OK] Using PostgreSQL database
+[OK] Using psycopg2 driver for PostgreSQL
 ```
 
 ### 6. 初始化数据库表
@@ -209,14 +224,49 @@ volumes:
 
 ---
 
+## Serverless 部署（Vercel/AWS Lambda）
+
+### 特殊说明
+
+在 Serverless 环境中部署时，需要注意：
+
+1. **驱动选择**：系统会自动使用 `psycopg` (v3) 驱动
+   - ✅ 纯 Python 实现，无需编译
+   - ✅ 在 Vercel、AWS Lambda 等环境中完美运行
+   - ✅ `psycopg2-binary` 在这些环境中通常无法使用
+
+2. **数据库连接**：
+   - 推荐使用连接池服务（如 Supabase、PlanetScale、Neon）
+   - 避免直接连接传统 PostgreSQL（连接数限制）
+   - 使用环境变量配置 `STORAGE_DATABASE_URL`
+
+3. **Vercel 部署示例**：
+
+```bash
+# .env.production
+STORAGE_DATABASE_URL=postgresql://user:pass@db.supabase.co:5432/postgres
+OPENAI_API_KEY=sk-...
+SECRET_KEY=your-secret-key
+```
+
+4. **验证部署**：
+
+部署成功后，检查日志应该看到：
+```
+[OK] Using PostgreSQL database
+[OK] Using psycopg (v3) driver for PostgreSQL
+```
+
+---
+
 ## 常见问题
 
-### Q: 如何查看当前使用的数据库？
+### Q: 如何查看当前使用的数据库和驱动？
 
 **A:** 启动应用时，控制台会打印：
 
-- `✅ 使用PostgreSQL数据库` 或
-- `✅ 使用SQLite数据库: sqlite:///./insightreader_v2.db`
+- `[OK] Using PostgreSQL database` + `[OK] Using psycopg (v3) driver` 或
+- `[OK] Using SQLite database: sqlite:///./insightreader_v2.db`
 
 ### Q: SQLite 和 PostgreSQL 可以同时使用吗？
 
@@ -239,6 +289,24 @@ STORAGE_DATABASE_URL=postgresql://... python -m uvicorn app.main:app --reload
 3. 数据库是否已创建
 4. 防火墙是否允许连接
 5. `pg_hba.conf` 是否配置正确
+
+### Q: Vercel 部署时出现 "No module named 'psycopg2'" 错误？
+
+**A:** 这是正常的。系统会自动使用 `psycopg` (v3) 驱动：
+
+1. 确保 `requirements.txt` 包含 `psycopg==3.1.18`
+2. 重新部署应用
+3. 检查日志应该看到 `[OK] Using psycopg (v3) driver`
+
+### Q: 本地开发时想使用 psycopg2 而不是 psycopg？
+
+**A:** 可以卸载 psycopg：
+
+```bash
+pip uninstall psycopg
+```
+
+系统会自动回退到 psycopg2-binary。但建议保留两个驱动，让系统自动选择。
 
 ### Q: 如何备份数据？
 
