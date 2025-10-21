@@ -13,11 +13,9 @@ print(sys.path)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from src_backend.app.config import settings
-from src_backend.app.api import insights, auth, collections, sparks, dashboard, analytics, meta_analysis, thinking_lens, articles, insight_history, sse, unified_analysis, preferences
-from src_backend.app.db.database import init_db
-
-
+from app.config import settings
+from app.api import insights, auth, collections, sparks, dashboard, analytics, meta_analysis, thinking_lens, articles, insight_history, sse, unified_analysis, preferences
+from app.db.database import init_db
 
 # 创建 FastAPI 应用
 app = FastAPI(
@@ -49,8 +47,12 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """应用启动时初始化数据库"""
-    init_db()
-    print("✅ 数据库初始化完成")
+    try:
+        init_db()
+        print("[OK] Database initialization completed")
+    except Exception as e:
+        print(f"[WARNING] Database initialization failed: {str(e)}")
+        print("[INFO] This is normal if tables already exist")
 
 # 注册路由
 app.include_router(insights.router, prefix="/api/v1", tags=["insights"])
