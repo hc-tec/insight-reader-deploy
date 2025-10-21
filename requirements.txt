@@ -30,4 +30,3 @@ sse-starlette==2.0.0
 # 工具
 python-dotenv==1.0.0
 itsdangerous==2.1.2
-stanza

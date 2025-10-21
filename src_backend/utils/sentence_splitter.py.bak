@@ -93,58 +93,135 @@ class SentenceSplitter:
             return SentenceSplitter._split_with_regex(text)
 
     @staticmethod
-    def _split_with_regex(text: str) -> List[str]:
+    def _split_with_enhanced_rules(text: str) -> List[str]:
         """
-        使用正则表达式进行分句（快速但精度较低）
+        使用增强规则进行分句
 
-        规则：
-        - 中文：按 。！？…\n 拆分
-        - 英文：按 .!?\n 拆分，处理常见缩写
-        - 保留标点符号
-        - 过滤空句子
+        规则优化：
+        1. 识别中文句子结束标点：。！？；…
+        2. 识别英文句子结束标点：.!?;
+        3. 处理引号、括号内的句子
+        4. 处理省略号、感叹号的组合
+        5. 处理英文缩写（避免误拆分）
+        6. 处理换行符（强制句子边界）
+        7. 处理数字、日期（避免误拆分）
         """
-        # 常见英文缩写
-        ABBREVIATIONS = [
-            'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Sr.', 'Jr.',
-            'etc.', 'vs.', 'e.g.', 'i.e.', 'U.S.', 'U.K.',
-            'Inc.', 'Ltd.', 'Co.', 'Corp.'
-        ]
+        sentences = []
 
-        # 句子分隔符（中文和英文）
-        sentence_delimiter_pattern = r'([。！？!?.…]+[\s\n]|[\n])'
+        # 步骤1: 按段落预处理
+        paragraphs = text.split('\n\n')
 
-        # 拆分并保留分隔符
-        parts = re.split(sentence_delimiter_pattern, text)
+        for para in paragraphs:
+            if not para.strip():
+                continue
+
+            # 步骤2: 在段落内进行分句
+            para_sentences = SentenceSplitter._split_paragraph(para)
+            sentences.extend(para_sentences)
+
+        return [s.strip() for s in sentences if s.strip()]
+
+    @staticmethod
+    def _split_paragraph(text: str) -> List[str]:
+        """在段落内进行精细分句"""
+
+        # 句子分隔符的正则模式
+        # 匹配：中文标点(。！？；…) + 可选空白
+        #      英文标点(.!?;) + 空白
+        #      换行符
+        pattern = r'([。！？；…]+\s*|[.!?]+\s+|\n)'
+
+        parts = re.split(pattern, text)
 
         sentences = []
-        current_sentence = ''
+        current = ''
+        i = 0
 
-        for i in range(len(parts)):
+        while i < len(parts):
             part = parts[i]
 
             if not part:
+                i += 1
                 continue
 
             # 如果是分隔符
-            if re.match(sentence_delimiter_pattern, part):
-                current_sentence += part
+            if re.match(pattern, part):
+                current += part
 
-                # 检查是否是真正的句子结束（排除缩写等）
-                next_part = parts[i + 1] if i + 1 < len(parts) else None
-                if _is_valid_sentence_end(current_sentence, next_part, ABBREVIATIONS):
-                    trimmed = current_sentence.strip()
-                    if trimmed:
-                        sentences.append(trimmed)
-                        current_sentence = ''
+                # 检查是否应该在此处断句
+                next_part = parts[i + 1] if i + 1 < len(parts) else ''
+
+                if SentenceSplitter._should_break(current, next_part):
+                    sentences.append(current.strip())
+                    current = ''
+                # 否则继续累积
             else:
-                current_sentence += part
+                current += part
 
-        # 处理最后一个句子
-        trimmed = current_sentence.strip()
-        if trimmed:
-            sentences.append(trimmed)
+            i += 1
 
-        return [s for s in sentences if s]
+        # 添加最后一个句子
+        if current.strip():
+            sentences.append(current.strip())
+
+        return sentences
+
+    @staticmethod
+    def _should_break(current: str, next_part: str) -> bool:
+        """
+        判断是否应该在当前位置断句
+
+        Args:
+            current: 当前累积的文本
+            next_part: 下一个文本片段
+
+        Returns:
+            是否应该断句
+        """
+        current = current.strip()
+
+        # 空文本，不断句
+        if not current:
+            return False
+
+        # 以换行符结束，强制断句
+        if current.endswith('\n'):
+            return True
+
+        # 检查是否以英文缩写结尾
+        for abbr in SentenceSplitter.ABBREVIATIONS:
+            if current.endswith(abbr):
+                # 如果下一部分以小写字母开头，不断句
+                if next_part and re.match(r'^[a-z]', next_part.strip()):
+                    return False
+
+        # 检查是否是数字 + 点（如：3.14, 1.5）
+        if re.search(r'\d+\.\s*$', current):
+            if next_part and re.match(r'^\d', next_part.strip()):
+                return False
+
+        # 检查是否在引号或括号内
+        # 如果引号、括号未闭合，不断句
+        open_quotes = current.count('"') + current.count('"') + current.count('「')
+        close_quotes = current.count('"') + current.count('"') + current.count('」')
+        open_parens = current.count('(') + current.count('（')
+        close_parens = current.count(')') + current.count('）')
+
+        if open_quotes % 2 != 0 or open_quotes != close_quotes:
+            return False
+        if open_parens != close_parens:
+            return False
+
+        # 以中文句子结束标点结尾，断句
+        if re.search(r'[。！？；…]$', current):
+            return True
+
+        # 以英文句子结束标点 + 空白结尾，断句
+        if re.search(r'[.!?]\s+$', current):
+            return True
+
+        # 默认不断句
+        return False
 
     @staticmethod
     def split_into_paragraphs(text: str, use_stanza: bool = True) -> List[Dict]:

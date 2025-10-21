@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # Email (Magic Links)
     mail_username: str = ""
     mail_password: str = ""
-    mail_from: str = "your@gmail.com"
+    mail_from: str = ""
     mail_server: str = "smtp.gmail.com"
     mail_port: int = 587
     mail_tls: bool = True
