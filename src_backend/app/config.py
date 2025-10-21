@@ -1,4 +1,8 @@
 """配置管理"""
+import logging
+
+logger = logging.getLogger(__name__)
+
 from pydantic_settings import BaseSettings
 
 
@@ -69,6 +73,6 @@ settings = Settings()
 # 如果设置了STORAGE_DATABASE_URL，优先使用PostgreSQL
 if settings.storage_database_url:
     settings.database_url = settings.storage_database_url
-    print(f"[OK] Using PostgreSQL database")
+    logger.info("[OK] Using PostgreSQL database")
 else:
-    print(f"[OK] Using SQLite database: {settings.database_url}")
+    logger.info(f"[OK] Using SQLite database: {settings.database_url}")

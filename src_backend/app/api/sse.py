@@ -4,11 +4,21 @@ SSE (Server-Sent Events) 实时通知服务
 用于通知前端分析完成等事件
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from asyncio import Queue
+import logging
+
 import asyncio
+import logging
+
 import json
+import logging
+
 import time
 from typing import Dict
 
@@ -41,7 +51,7 @@ async def notify_analysis_complete(user_id: int, article_id: int):
             "timestamp": time.time()
         }
     })
-    print(f"已通知用户 {user_id} 文章 {article_id} 分析完成")
+    logger.info(f"已通知用户 {user_id} 文章 {article_id} 分析完成")
 
 
 async def notify_analysis_progress(user_id: int, article_id: int, stage: str, progress: int):
@@ -81,7 +91,7 @@ async def event_generator(user_id: int):
     # 发送初始连接事件
     yield f"event: connected\ndata: {json.dumps({'user_id': user_id, 'timestamp': time.time()})}\n\n"
 
-    print(f"用户 {user_id} SSE 连接已建立")
+    logger.info(f"用户 {user_id} SSE 连接已建立")
 
     while True:
         try:
@@ -93,7 +103,7 @@ async def event_generator(user_id: int):
             data = json.dumps(message.get("data", {}))
             yield f"event: {event_type}\ndata: {data}\n\n"
 
-            print(f"发送事件给用户 {user_id}: {event_type}")
+            logger.info(f"发送事件给用户 {user_id}: {event_type}")
 
         except asyncio.TimeoutError:
             # 发送心跳保持连接
@@ -137,4 +147,4 @@ async def cleanup_user_queue(user_id: int):
     """
     if user_id in user_queues:
         del user_queues[user_id]
-        print(f"用户 {user_id} SSE 队列已清理")
+        logger.info(f"用户 {user_id} SSE 队列已清理")

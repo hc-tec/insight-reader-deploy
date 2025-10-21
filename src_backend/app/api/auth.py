@@ -1,4 +1,8 @@
 """用户认证 API - 无密码设计"""
+import logging
+
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -75,10 +79,10 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         access_token = create_access_token(data={"sub": str(user.id)})
 
         # 调试日志
-        print(f"✅ Google 登录成功:")
-        print(f"  用户ID: {user.id}")
-        print(f"  邮箱: {user.email}")
-        print(f"  Token (前50字符): {access_token[:50]}...")
+        logger.info(f" Google 登录成功:")
+        logger.info(f"  用户ID: {user.id}")
+        logger.info(f"  邮箱: {user.email}")
+        logger.info(f"  Token (前50字符): {access_token[:50]}...")
 
         # 重定向到前端，带上 token 和用户信息
         redirect_url = f"{settings.frontend_url}/auth/callback?token={access_token}"

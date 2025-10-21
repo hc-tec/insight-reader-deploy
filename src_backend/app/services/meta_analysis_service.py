@@ -3,18 +3,17 @@
 负责调用LLM分析文章的元信息（作者意图、时效性、偏见、知识缺口）
 """
 
-from openai import OpenAI
-from sqlalchemy.orm import Session
-from app.models.models import MetaAnalysis, Article
-from app.config import settings
-from app.utils.sentence_splitter import split_sentences
-from app.utils.error_logger import log_llm_error
+import logging
 import json
 import json_repair
 import hashlib
 from datetime import datetime
 from typing import Dict, Optional, List
-import logging
+from openai import OpenAI
+from sqlalchemy.orm import Session
+from app.models.models import MetaAnalysis, Article
+from app.config import settings
+from app.utils.sentence_splitter import split_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -196,19 +195,7 @@ class MetaAnalysisService:
                 max_tokens=2000
             )
         except Exception as e:
-            # 记录LLM调用错误
-            log_llm_error(
-                service_name="meta_analysis",
-                model_name=settings.default_model,
-                error=e,
-                request_data={
-                    "title": title,
-                    "author": author,
-                    "sentence_count": len(sentences),
-                    "language": language
-                }
-            )
-            logger.error(f"❌ LLM 调用失败: {e}")
+            logger.error(f"LLM调用失败 - meta_analysis - model={settings.default_model}, error={e}")
             raise
 
         # 解析响应
@@ -218,16 +205,7 @@ class MetaAnalysisService:
             result = json_repair.repair_json(raw_content, return_objects=True, ensure_ascii=False)
             logger.info("✅ JSON解析成功（使用json_repair）")
         except Exception as e:
-            # 记录JSON解析错误
-            log_llm_error(
-                service_name="meta_analysis",
-                model_name=settings.default_model,
-                error=e,
-                request_data={
-                    "response_content": response.choices[0].message.content[:500]
-                }
-            )
-            logger.error(f"❌ JSON 解析失败: {e}")
+            logger.error(f"JSON解析失败 - meta_analysis - model={settings.default_model}, error={e}")
             raise
 
         # 验证结构

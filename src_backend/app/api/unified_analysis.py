@@ -4,17 +4,20 @@
 提供文章保存、分析触发、报告查询等接口
 """
 
+import logging
+import hashlib
+import asyncio
+import json
+from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
 from app.db.database import get_db
 from app.models.models import Article, AnalysisReport
 from app.services.unified_analysis_service import UnifiedAnalysisService
-import hashlib
-from datetime import datetime
-import asyncio
-import json
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -81,7 +84,7 @@ async def save_article_with_analysis(
 
         if report and report.status == 'completed':
             # 已有完整报告，直接返回
-            print(f"📖 文章已存在且有分析报告，ID: {article.id}")
+            logger.info(f"文章已存在且有分析报告，ID: {article.id}")
             return {
                 "article": {
                     "id": article.id,
@@ -109,7 +112,7 @@ async def save_article_with_analysis(
         db.commit()
         db.refresh(article)
 
-        print(f"✅ 新文章已保存，ID: {article.id}")
+        logger.info(f"新文章已保存，ID: {article.id}")
 
     # 3. 创建或获取分析报告记录
     report = db.query(AnalysisReport).filter(
@@ -127,7 +130,7 @@ async def save_article_with_analysis(
 
     # 4. 执行同步分析任务（开发环境）
     try:
-        print(f"🚀 开始分析文章，ID: {article.id}")
+        logger.info(f"开始分析文章，ID: {article.id}")
 
         # 更新状态为处理中
         report.status = 'processing'
@@ -149,7 +152,7 @@ async def save_article_with_analysis(
         report.completed_at = datetime.utcnow()
         db.commit()
 
-        print(f"✅ 文章分析完成，ID: {article.id}")
+        logger.info(f"文章分析完成，ID: {article.id}")
 
         return {
             "article": {
@@ -168,7 +171,7 @@ async def save_article_with_analysis(
         report.error_message = str(e)
         db.commit()
 
-        print(f"❌ 文章分析失败: {str(e)}")
+        logger.error(f"文章分析失败: {str(e)}")
 
         raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
 

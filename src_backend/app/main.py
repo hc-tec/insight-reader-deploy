@@ -1,4 +1,14 @@
 """FastAPI 主应用"""
+import logging
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -38,10 +48,10 @@ async def startup_event():
     """应用启动时初始化数据库"""
     try:
         init_db()
-        print("[OK] Database initialization completed")
+        logger.info(f"[OK] Database initialization completed")
     except Exception as e:
-        print(f"[WARNING] Database initialization failed: {str(e)}")
-        print("[INFO] This is normal if tables already exist")
+        logger.error(f"[WARNING] Database initialization failed: {str(e)}")
+        logger.info(f"[INFO] This is normal if tables already exist")
 
 # 注册路由
 app.include_router(insights.router, prefix="/api/v1", tags=["insights"])

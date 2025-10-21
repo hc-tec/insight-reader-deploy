@@ -12,48 +12,51 @@ Run this after setting up your PostgreSQL database for the first time.
 import sys
 from app.db.database import init_db
 from app.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def main():
     """Initialize database tables"""
-    print("=" * 60)
-    print("Database Initialization Script")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Database Initialization Script")
+    logger.info("=" * 60)
 
-    print(f"\nDatabase URL: {settings.database_url}")
+    logger.info(f"\nDatabase URL: {settings.database_url}")
 
     if "postgresql" in settings.database_url:
-        print("Database Type: PostgreSQL")
+        logger.info("Database Type: PostgreSQL")
     else:
-        print("Database Type: SQLite")
+        logger.info("Database Type: SQLite")
 
-    print("\nInitializing database tables...")
+    logger.info("\nInitializing database tables...")
 
     try:
         init_db()
-        print("\n[SUCCESS] Database tables created successfully!")
-        print("\nCreated tables:")
-        print("  - users")
-        print("  - articles")
-        print("  - insights")
-        print("  - collections")
-        print("  - sparks")
-        print("  - meta_analysis")
-        print("  - thinking_lens")
-        print("  - insight_history")
-        print("  - preferences")
-        print("\n" + "=" * 60)
+        logger.info("\n[SUCCESS] Database tables created successfully!")
+        logger.info("\nCreated tables:")
+        logger.info("  - users")
+        logger.info("  - articles")
+        logger.info("  - insights")
+        logger.info("  - collections")
+        logger.info("  - sparks")
+        logger.info("  - meta_analysis")
+        logger.info("  - thinking_lens")
+        logger.info("  - insight_history")
+        logger.info("  - preferences")
+        logger.info("\n" + "=" * 60)
         return 0
 
     except Exception as e:
-        print(f"\n[ERROR] Failed to initialize database")
-        print(f"Error details: {str(e)}")
-        print("\nPlease check:")
-        print("  1. Database connection string is correct")
-        print("  2. Database server is running")
-        print("  3. Database user has proper permissions")
-        print("  4. Database exists")
-        print("\n" + "=" * 60)
+        logger.error(f"\n[ERROR] Failed to initialize database")
+        logger.error(f"Error details: {str(e)}")
+        logger.error("\nPlease check:")
+        logger.error("  1. Database connection string is correct")
+        logger.error("  2. Database server is running")
+        logger.error("  3. Database user has proper permissions")
+        logger.error("  4. Database exists")
+        logger.error("\n" + "=" * 60)
         return 1
 
 

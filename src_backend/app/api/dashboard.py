@@ -1,4 +1,8 @@
 """仪表盘 (Dashboard) 相关 API 端点"""
+import logging
+
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Dict
@@ -61,7 +65,7 @@ async def get_dashboard_overview(
         }
 
     except Exception as e:
-        print(f"❌ 仪表盘总览获取失败: {e}")
+        logger.error(f" 仪表盘总览获取失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -84,7 +88,7 @@ async def get_knowledge_graph(
         return service.get_knowledge_graph(user_id)
 
     except Exception as e:
-        print(f"❌ 知识图谱获取失败: {e}")
+        logger.error(f" 知识图谱获取失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -108,7 +112,7 @@ async def rebuild_knowledge_graph(
         return result
 
     except Exception as e:
-        print(f"❌ 知识图谱重建失败: {e}")
+        logger.error(f" 知识图谱重建失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -131,7 +135,7 @@ async def get_curiosity_fingerprint(
         return service.get_curiosity_fingerprint(user_id)
 
     except Exception as e:
-        print(f"❌ 好奇心指纹获取失败: {e}")
+        logger.error(f" 好奇心指纹获取失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -154,5 +158,5 @@ async def get_blind_spots(
         return service.get_blind_spots(user_id)
 
     except Exception as e:
-        print(f"❌ 盲区检测失败: {e}")
+        logger.error(f" 盲区检测失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

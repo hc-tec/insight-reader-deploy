@@ -1,4 +1,8 @@
 """数据库连接和会话管理"""
+import logging
+
+logger = logging.getLogger(__name__)
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from app.config import settings
@@ -12,14 +16,14 @@ if database_url.startswith("postgresql://"):
     try:
         import psycopg  # noqa
         database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-        print("[OK] Using psycopg (v3) driver for PostgreSQL")
+        logger.info("[OK] Using psycopg (v3) driver for PostgreSQL")
     except ImportError:
         # 回退到 psycopg2-binary（本地开发）
         try:
             import psycopg2  # noqa
-            print("[OK] Using psycopg2 driver for PostgreSQL")
+            logger.info("[OK] Using psycopg2 driver for PostgreSQL")
         except ImportError:
-            print("[WARNING] No PostgreSQL driver found. Please install psycopg or psycopg2-binary")
+            logger.warning("[WARNING] No PostgreSQL driver found. Please install psycopg or psycopg2-binary")
 
 # 创建数据库引擎
 engine = create_engine(
@@ -35,9 +39,9 @@ def init_db():
     """初始化数据库（创建所有表）"""
     try:
         Base.metadata.create_all(bind=engine)
-        print("[OK] Database tables initialized successfully")
+        logger.info(f"[OK] Database tables initialized successfully")
     except Exception as e:
-        print(f"[ERROR] Failed to initialize database: {str(e)}")
+        logger.error(f"[ERROR] Failed to initialize database: {str(e)}")
         raise
 
 

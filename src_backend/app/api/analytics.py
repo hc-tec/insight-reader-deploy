@@ -1,4 +1,8 @@
 """分析统计 (Analytics) 相关 API 端点"""
+import logging
+
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -48,7 +52,7 @@ async def record_spark_click(
         }
 
     except Exception as e:
-        print(f"❌ 火花点击记录失败: {e}")
+        logger.error(f" 火花点击记录失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -73,5 +77,5 @@ async def get_spark_stats(
         return service.get_spark_stats(user_id, days)
 
     except Exception as e:
-        print(f"❌ 火花统计获取失败: {e}")
+        logger.error(f" 火花统计获取失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
