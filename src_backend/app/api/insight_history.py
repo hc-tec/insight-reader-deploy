@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.database import get_db
-from app.models.models import Article, InsightHistory
+from app.models.models import Article, InsightHistory, User
+from app.utils.auth import get_current_active_user
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -22,7 +23,6 @@ class SaveArticleRequest(BaseModel):
     title: str
     author: Optional[str] = "Unknown"
     content: str
-    user_id: Optional[int] = None
     source_url: Optional[str] = None
     language: str = "zh"
 
@@ -30,7 +30,6 @@ class SaveArticleRequest(BaseModel):
 class SaveInsightRequest(BaseModel):
     """保存洞察记录请求"""
     article_id: int
-    user_id: Optional[int] = None
     selected_text: str
     selected_start: Optional[int] = None
     selected_end: Optional[int] = None
@@ -45,12 +44,17 @@ class SaveInsightRequest(BaseModel):
 # ==================== 文章相关 API ====================
 
 @router.post("/api/v1/articles/save")
-async def save_article(request: SaveArticleRequest, db: Session = Depends(get_db)):
+async def save_article(
+    request: SaveArticleRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """
     保存文章（如果已存在则返回现有文章）
 
     Args:
         request: 文章信息
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
@@ -60,8 +64,11 @@ async def save_article(request: SaveArticleRequest, db: Session = Depends(get_db
         # 计算 MD5 哈希
         content_hash = hashlib.md5(request.content.encode('utf-8')).hexdigest()
 
-        # 查找是否已存在
-        article = db.query(Article).filter(Article.content_hash == content_hash).first()
+        # 查找是否已存在（限定为当前用户）
+        article = db.query(Article).filter(
+            Article.content_hash == content_hash,
+            Article.user_id == current_user.id
+        ).first()
 
         if article:
             # 文章已存在，更新阅读统计
@@ -83,7 +90,7 @@ async def save_article(request: SaveArticleRequest, db: Session = Depends(get_db
         else:
             # 创建新文章
             new_article = Article(
-                user_id=request.user_id,
+                user_id=current_user.id,
                 title=request.title,
                 author=request.author,
                 source_url=request.source_url,
@@ -116,27 +123,35 @@ async def save_article(request: SaveArticleRequest, db: Session = Depends(get_db
 # ==================== 洞察历史 API ====================
 
 @router.post("/api/v1/insights/history")
-async def save_insight_history(request: SaveInsightRequest, db: Session = Depends(get_db)):
+async def save_insight_history(
+    request: SaveInsightRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """
     保存洞察记录
 
     Args:
         request: 洞察信息
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
         成功消息 + 洞察ID
     """
     try:
-        # 验证文章是否存在
+        # 验证文章是否存在并属于当前用户
         article = db.query(Article).filter(Article.id == request.article_id).first()
         if not article:
             raise HTTPException(status_code=404, detail="文章不存在")
 
+        if article.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权访问此文章")
+
         # 创建洞察记录
         insight_history = InsightHistory(
             article_id=request.article_id,
-            user_id=request.user_id,
+            user_id=current_user.id,
             selected_text=request.selected_text,
             selected_start=request.selected_start,
             selected_end=request.selected_end,
@@ -171,9 +186,9 @@ async def save_insight_history(request: SaveInsightRequest, db: Session = Depend
 @router.get("/api/v1/insights/history")
 async def get_insight_history(
     article_id: int,
-    user_id: Optional[int] = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -181,20 +196,28 @@ async def get_insight_history(
 
     Args:
         article_id: 文章ID
-        user_id: 用户ID（可选，不传则返回所有用户的记录）
         limit: 每页数量
         offset: 偏移量
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
         洞察历史列表
     """
     try:
-        # 构建查询
-        query = db.query(InsightHistory).filter(InsightHistory.article_id == article_id)
+        # 验证文章是否存在并属于当前用户
+        article = db.query(Article).filter(Article.id == article_id).first()
+        if not article:
+            raise HTTPException(status_code=404, detail="文章不存在")
 
-        if user_id is not None:
-            query = query.filter(InsightHistory.user_id == user_id)
+        if article.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权访问此文章")
+
+        # 构建查询（只返回当前用户的洞察）
+        query = db.query(InsightHistory).filter(
+            InsightHistory.article_id == article_id,
+            InsightHistory.user_id == current_user.id
+        )
 
         # 按时间倒序
         query = query.order_by(desc(InsightHistory.created_at))
@@ -230,12 +253,17 @@ async def get_insight_history(
 
 
 @router.delete("/api/v1/insights/history/{insight_id}")
-async def delete_insight_history(insight_id: int, db: Session = Depends(get_db)):
+async def delete_insight_history(
+    insight_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """
     删除洞察记录
 
     Args:
         insight_id: 洞察ID
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
@@ -246,6 +274,10 @@ async def delete_insight_history(insight_id: int, db: Session = Depends(get_db))
 
         if not insight:
             raise HTTPException(status_code=404, detail="洞察记录不存在")
+
+        # 权限检查：只能删除自己的洞察记录
+        if insight.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权删除此洞察记录")
 
         # 更新文章的洞察计数
         article = db.query(Article).filter(Article.id == insight.article_id).first()

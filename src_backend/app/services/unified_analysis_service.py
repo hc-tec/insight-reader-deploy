@@ -5,7 +5,7 @@
 """
 
 import logging
-from openai import OpenAI
+from openai import AsyncOpenAI
 from app.config import settings
 from app.utils.sentence_splitter import split_sentences
 import json
@@ -21,8 +21,8 @@ class UnifiedAnalysisService:
     """统一深度分析服务"""
 
     def __init__(self):
-        """初始化 OpenAI 客户端"""
-        self.client = OpenAI(
+        """初始化 AsyncOpenAI 客户端"""
+        self.client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url
         )
@@ -56,10 +56,10 @@ class UnifiedAnalysisService:
         # 2. 构建 Prompt（传递句子列表而非原始内容）
         prompt = self._build_analysis_prompt(sentences, article_title)
 
-        # 3. 调用 LLM
+        # 3. 调用 LLM (异步)
         logger.info("开始调用 LLM 进行深度分析")
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {

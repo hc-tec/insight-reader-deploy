@@ -1,11 +1,12 @@
 """
-文章历史 API 路由
+文章历史 API 路由（JWT 认证版本）
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.models import Article
+from app.models.models import Article, User
+from app.utils.auth import get_current_active_user
 from typing import Optional, List
 from datetime import datetime
 
@@ -14,27 +15,25 @@ router = APIRouter()
 
 @router.get("/api/v1/articles")
 async def get_articles(
-    user_id: Optional[int] = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
     获取文章列表
 
     Args:
-        user_id: 用户ID (可选，不传则返回所有文章)
         limit: 每页数量
         offset: 偏移量
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
         文章列表
     """
-    query = db.query(Article)
-
-    if user_id is not None:
-        query = query.filter(Article.user_id == user_id)
+    # 只返回当前用户的文章
+    query = db.query(Article).filter(Article.user_id == current_user.id)
 
     # 按最后阅读时间倒序
     query = query.order_by(Article.last_read_at.desc())
@@ -69,6 +68,7 @@ async def get_articles(
 @router.get("/api/v1/articles/{article_id}")
 async def get_article(
     article_id: int,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -76,6 +76,7 @@ async def get_article(
 
     Args:
         article_id: 文章ID
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
@@ -85,6 +86,10 @@ async def get_article(
 
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+
+    # 权限检查：只能访问自己的文章
+    if article.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此文章")
 
     # 更新阅读次数和时间
     article.last_read_at = datetime.utcnow()
@@ -112,6 +117,7 @@ async def get_article(
 @router.delete("/api/v1/articles/{article_id}")
 async def delete_article(
     article_id: int,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -119,6 +125,7 @@ async def delete_article(
 
     Args:
         article_id: 文章ID
+        current_user: 当前用户（从 JWT 获取）
         db: 数据库会话
 
     Returns:
@@ -128,6 +135,10 @@ async def delete_article(
 
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+
+    # 权限检查：只能删除自己的文章
+    if article.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权删除此文章")
 
     db.delete(article)
     db.commit()

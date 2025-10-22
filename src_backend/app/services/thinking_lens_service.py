@@ -4,7 +4,7 @@
 """
 
 import logging
-from openai import OpenAI
+from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 from app.models.models import ThinkingLensResult, MetaAnalysis
 from app.config import settings
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 class ThinkingLensService:
     def __init__(self, db: Session):
         self.db = db
-        # 使用 settings 中的配置初始化 OpenAI 客户端
-        self.client = OpenAI(
+        # 使用 settings 中的配置初始化 AsyncOpenAI 客户端
+        self.client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url if settings.openai_base_url else None
         )
@@ -263,9 +263,9 @@ class ThinkingLensService:
     async def _call_llm_for_lens(self, system_prompt: str, user_prompt: str) -> Dict:
         """调用 LLM 进行透镜分析"""
 
-        # 使用 settings 中的配置调用 OpenAI API
+        # 使用 settings 中的配置调用 OpenAI API (异步)
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=settings.default_model,  # 使用配置中的默认模型
                 messages=[
                     {"role": "system", "content": system_prompt},

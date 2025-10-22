@@ -7,7 +7,6 @@ project_root = Path(__file__).parent.parent / "src_backend"
 
 sys.path.append(str(project_root))
 
-print(sys.path)
 
 """FastAPI 主应用"""
 import logging

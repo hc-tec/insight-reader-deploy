@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-统一深度分析 API
-提供文章保存、分析触发、报告查询等接口
+统一深度分析 API（异步版本 + JWT 认证）
+提供文章保存、异步分析触发、报告查询等接口
 """
 
 import logging
 import hashlib
-import asyncio
-import json
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from app.db.database import get_db
-from app.models.models import Article, AnalysisReport
+from app.db.database import get_db, SessionLocal
+from app.models.models import Article, AnalysisReport, User
 from app.services.unified_analysis_service import UnifiedAnalysisService
+from app.core.task_manager import task_manager
+from app.utils.auth import get_current_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,6 @@ class SaveArticleWithAnalysisRequest(BaseModel):
     author: Optional[str] = None
     source_url: Optional[str] = None
     content: str
-    user_id: Optional[int] = None
 
 
 class AnalysisStatusResponse(BaseModel):
@@ -38,19 +37,110 @@ class AnalysisStatusResponse(BaseModel):
     error_message: Optional[str] = None
 
 
+# ============= 后台任务函数 =============
+
+async def analyze_article_task(article_id: int):
+    """
+    后台分析文章任务
+
+    Args:
+        article_id: 文章ID
+
+    Returns:
+        分析结果字典
+    """
+    db = SessionLocal()
+
+    try:
+        logger.info(f"[后台任务] 开始分析文章，ID: {article_id}")
+
+        # 获取文章
+        article = db.query(Article).filter(Article.id == article_id).first()
+        if not article:
+            raise Exception(f"文章不存在: {article_id}")
+
+        # 获取或创建分析报告
+        report = db.query(AnalysisReport).filter(
+            AnalysisReport.article_id == article_id
+        ).first()
+
+        if not report:
+            report = AnalysisReport(
+                article_id=article_id,
+                status='processing'
+            )
+            db.add(report)
+        else:
+            report.status = 'processing'
+
+        db.commit()
+
+        # 执行分析
+        analysis_service = UnifiedAnalysisService()
+        start_time = datetime.utcnow()
+
+        result = await analysis_service.analyze_article(
+            article_content=article.content,
+            article_title=article.title or ""
+        )
+
+        # 计算处理时间
+        processing_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+
+        # 保存分析结果
+        report.status = 'completed'
+        report.report_data = result['report']
+        report.metadata = result['metadata']
+        report.model_used = result['metadata'].get('model_used')
+        report.tokens_used = result['metadata'].get('tokens_used')
+        report.processing_time_ms = processing_time_ms
+        report.completed_at = datetime.utcnow()
+        db.commit()
+
+        logger.info(f"[后台任务] 文章分析完成，ID: {article_id}, 耗时: {processing_time_ms}ms")
+
+        return {
+            "article_id": article_id,
+            "status": "completed",
+            "report_data": result['report']
+        }
+
+    except Exception as e:
+        logger.error(f"[后台任务] 文章分析失败，ID: {article_id}, 错误: {str(e)}", exc_info=True)
+
+        # 更新失败状态
+        try:
+            report = db.query(AnalysisReport).filter(
+                AnalysisReport.article_id == article_id
+            ).first()
+            if report:
+                report.status = 'failed'
+                report.error_message = str(e)
+                db.commit()
+        except Exception as db_error:
+            logger.error(f"[后台任务] 更新失败状态出错: {str(db_error)}")
+
+        raise
+
+    finally:
+        db.close()
+
+
 @router.post("/api/v1/articles/save-with-analysis")
 async def save_article_with_analysis(
     request: SaveArticleWithAnalysisRequest,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    保存文章并触发深度分析（同步执行）
+    保存文章并触发深度分析（异步版本）
 
     工作流程：
-    1. 保存文章到数据库（MD5去重）
+    1. 保存文章到数据库（MD5去重） - 快速返回
     2. 检查是否已有分析报告
-    3. 如果没有报告，立即执行分析
-    4. 返回文章ID和分析状态
+    3. 如果没有报告，提交后台分析任务
+    4. 立即返回文章ID和任务状态
+    5. 分析完成后通过SSE通知前端
 
     Returns:
         {
@@ -59,8 +149,8 @@ async def save_article_with_analysis(
                 "is_new": bool
             },
             "analysis": {
-                "status": "completed" | "pending",
-                "task_id": None
+                "status": "completed" | "pending" | "processing",
+                "task_id": str | None
             }
         }
     """
@@ -84,7 +174,7 @@ async def save_article_with_analysis(
 
         if report and report.status == 'completed':
             # 已有完整报告，直接返回
-            logger.info(f"文章已存在且有分析报告，ID: {article.id}")
+            logger.info(f"[API] 文章已存在且有分析报告，ID: {article.id}")
             return {
                 "article": {
                     "id": article.id,
@@ -96,11 +186,25 @@ async def save_article_with_analysis(
                 }
             }
 
+        if report and report.status == 'processing':
+            # 正在分析中
+            logger.info(f"[API] 文章正在分析中，ID: {article.id}")
+            return {
+                "article": {
+                    "id": article.id,
+                    "is_new": False
+                },
+                "analysis": {
+                    "status": "processing",
+                    "task_id": None
+                }
+            }
+
     else:
         # 创建新文章
         is_new_article = True
         article = Article(
-            user_id=request.user_id,
+            user_id=current_user.id,
             title=request.title,
             author=request.author,
             source_url=request.source_url,
@@ -112,7 +216,7 @@ async def save_article_with_analysis(
         db.commit()
         db.refresh(article)
 
-        logger.info(f"新文章已保存，ID: {article.id}")
+        logger.info(f"[API] 新文章已保存，ID: {article.id}")
 
     # 3. 创建或获取分析报告记录
     report = db.query(AnalysisReport).filter(
@@ -128,52 +232,30 @@ async def save_article_with_analysis(
         db.commit()
         db.refresh(report)
 
-    # 4. 执行同步分析任务（开发环境）
-    try:
-        logger.info(f"开始分析文章，ID: {article.id}")
+    # 4. 提交异步分析任务
+    task_id = task_manager.submit_task(
+        "article_analysis",
+        analyze_article_task,
+        {
+            "article_id": article.id,
+            "user_id": current_user.id,
+            "article_title": request.title
+        },
+        article.id  # 传递给任务函数的参数
+    )
 
-        # 更新状态为处理中
-        report.status = 'processing'
-        db.commit()
+    logger.info(f"[API] 异步分析任务已提交，文章ID: {article.id}, 任务ID: {task_id}")
 
-        # 创建分析服务实例
-        analysis_service = UnifiedAnalysisService()
-
-        # 执行分析
-        result = await analysis_service.analyze_article(
-            article_content=article.content,
-            article_title=article.title or ""
-        )
-
-        # 保存分析结果
-        report.status = 'completed'
-        report.report_data = result['report']
-        report.metadata = result['metadata']
-        report.completed_at = datetime.utcnow()
-        db.commit()
-
-        logger.info(f"文章分析完成，ID: {article.id}")
-
-        return {
-            "article": {
-                "id": article.id,
-                "is_new": is_new_article
-            },
-            "analysis": {
-                "status": "completed",
-                "task_id": None
-            }
+    return {
+        "article": {
+            "id": article.id,
+            "is_new": is_new_article
+        },
+        "analysis": {
+            "status": "pending",
+            "task_id": task_id
         }
-
-    except Exception as e:
-        # 分析失败，记录错误
-        report.status = 'failed'
-        report.error_message = str(e)
-        db.commit()
-
-        logger.error(f"文章分析失败: {str(e)}")
-
-        raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
+    }
 
 
 @router.get("/api/v1/articles/{article_id}/analysis-status")
@@ -253,11 +335,13 @@ async def get_analysis_report(
 @router.post("/api/v1/articles/{article_id}/reanalyze")
 async def reanalyze_article(
     article_id: int,
-    user_id: Optional[int] = None,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    重新分析文章（例如当分析失败或需要更新时）
+    重新分析文章（异步版本）
+
+    例如当分析失败或需要更新时
 
     Returns:
         {
@@ -287,10 +371,21 @@ async def reanalyze_article(
 
     db.commit()
 
-    # 触发异步任务
-    task = analyze_article_task.delay(article_id, user_id)
+    # 提交异步分析任务
+    task_id = task_manager.submit_task(
+        "article_reanalysis",
+        analyze_article_task,
+        {
+            "article_id": article_id,
+            "user_id": current_user.id,
+            "article_title": article.title
+        },
+        article_id  # 传递给任务函数的参数
+    )
+
+    logger.info(f"[API] 重新分析任务已提交，文章ID: {article_id}, 任务ID: {task_id}")
 
     return {
-        "task_id": task.id,
+        "task_id": task_id,
         "message": "重新分析已开始"
     }

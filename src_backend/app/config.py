@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     mail_username: str = ""
     mail_password: str = ""
     mail_from: str = ""
+    mail_from_name: str = ""
     mail_server: str = "smtp.gmail.com"
     mail_port: int = 587
     mail_tls: bool = True

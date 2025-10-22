@@ -84,15 +84,15 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         logger.info(f"  邮箱: {user.email}")
         logger.info(f"  Token (前50字符): {access_token[:50]}...")
 
-        # 重定向到前端，带上 token 和用户信息
-        redirect_url = f"{settings.frontend_url}/auth/callback?token={access_token}"
+        # 重定向到前端，带上 token 和用户信息（hash 路由）
+        redirect_url = f"{settings.frontend_url}/#/auth/callback?token={access_token}"
         return RedirectResponse(url=redirect_url)
 
     except Exception as e:
-        # 重定向到前端错误页面
+        # 重定向到前端错误页面（hash 路由）
         error_msg = f"Google登录失败: {str(e)}"
         return RedirectResponse(
-            url=f"{settings.frontend_url}/login?error={error_msg}"
+            url=f"{settings.frontend_url}/#/login?error={error_msg}"
         )
 
 
@@ -150,15 +150,15 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
         # 生成 JWT token（sub 必须是字符串）
         access_token = create_access_token(data={"sub": str(user.id)})
 
-        # 重定向到前端，带上 token
-        redirect_url = f"{settings.frontend_url}/auth/callback?token={access_token}"
+        # 重定向到前端，带上 token（hash 路由）
+        redirect_url = f"{settings.frontend_url}/#/auth/callback?token={access_token}"
         return RedirectResponse(url=redirect_url)
 
     except Exception as e:
-        # 重定向到前端错误页面
+        # 重定向到前端错误页面（hash 路由）
         error_msg = f"GitHub登录失败: {str(e)}"
         return RedirectResponse(
-            url=f"{settings.frontend_url}/login?error={error_msg}"
+            url=f"{settings.frontend_url}/#/login?error={error_msg}"
         )
 
 
