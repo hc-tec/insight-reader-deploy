@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = []
 
+    # 管理员配置
+    admin_emails: str = "admin@insightreader.com"  # 逗号分隔的管理员邮箱列表
+
     # Google OAuth
     google_client_id: str = ""
     google_client_secret: str = ""

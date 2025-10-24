@@ -2,8 +2,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 # OAuth2 密码bearer令牌
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+# 可选的 Bearer 认证（不强制要求）
+optional_oauth2_scheme = HTTPBearer(auto_error=False)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -103,3 +106,47 @@ async def get_current_active_user(
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="用户未激活")
     return current_user
+
+
+async def get_current_user_optional(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(optional_oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    获取当前用户（可选）
+
+    用于支持公开访问的端点，如果有 token 则验证并返回用户，否则返回 None
+
+    **使用场景：**
+    - 示例文章：任何人都可以访问，无需登录
+    - 普通文章：需要登录且是文章所有者
+    """
+    if auth is None:
+        # 没有提供认证信息，返回 None
+        return None
+
+    try:
+        token = auth.credentials
+        payload = verify_token(token)
+
+        if payload is None:
+            # Token 无效，返回 None
+            logger.warning("Token 验证失败（可选认证）")
+            return None
+
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
+            return None
+
+        user_id = int(user_id_str)
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if user and user.is_active:
+            logger.info(f"可选认证成功: {user.email}")
+            return user
+
+        return None
+
+    except Exception as e:
+        logger.error(f"可选认证失败: {e}")
+        return None

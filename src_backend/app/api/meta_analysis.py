@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db, SessionLocal
 from app.services.meta_analysis_service import MetaAnalysisService
 from app.core.task_manager import task_manager
-from app.utils.auth import get_current_active_user
-from app.models.models import User
+from app.utils.auth import get_current_active_user, get_current_user_optional
+from app.models.models import User, Article
 from pydantic import BaseModel
 from typing import Optional
 
@@ -92,20 +92,25 @@ class AnalyzeRequest(BaseModel):
 @router.post("/api/v1/meta-analysis/analyze")
 async def analyze_article(
     request: AnalyzeRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
     触发元信息分析（异步版本）
 
+    **权限控制：**
+    - 如果分析已存在：任何人都可以获取（示例文章场景）
+    - 如果需要创建新分析：需要登录
+
     工作流程：
     1. 检查是否已有分析结果
-    2. 如果有且不强制重新分析，立即返回
-    3. 否则提交后台分析任务
+    2. 如果有且不强制重新分析，立即返回（无需登录）
+    3. 否则需要登录才能提交后台分析任务
     4. 通过SSE通知前端分析完成
 
     Args:
         request: 分析请求
+        current_user: 当前用户（可选）
         db: 数据库会话
 
     Returns:
@@ -139,7 +144,11 @@ async def analyze_article(
                         "task_id": None
                     }
 
-        # 需要重新分析或首次分析 - 先保存文章
+        # 需要重新分析或首次分析 - 需要登录
+        if not current_user:
+            raise HTTPException(status_code=401, detail="创建新分析需要登录")
+
+        # 先保存文章
         from app.models.models import Article
         import hashlib
 
@@ -197,18 +206,37 @@ async def analyze_article(
 @router.get("/api/v1/meta-analysis/{article_id}")
 async def get_meta_analysis(
     article_id: int,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
     获取元信息分析结果
 
+    **权限控制：**
+    - 示例文章（is_demo=True）：任何人都可以访问，无需登录
+    - 普通文章：需要登录且是文章所有者
+
     Args:
         article_id: 文章ID
+        current_user: 当前用户（可选）
         db: 数据库会话
 
     Returns:
         元信息分析结果或null
     """
+    # 查询文章
+    article = db.query(Article).filter(Article.id == article_id).first()
+
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+
+    # 权限验证：示例文章可公开访问，普通文章需要所有权验证
+    if not article.is_demo:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="需要登录")
+        if article.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权访问此文章")
+
     service = MetaAnalysisService(db)
     result = service.get_meta_analysis(article_id)
 

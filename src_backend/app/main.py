@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
-from app.api import insights, auth, collections, sparks, dashboard, analytics, meta_analysis, thinking_lens, articles, insight_history, sse, unified_analysis, preferences
+from app.api import insights, auth, collections, sparks, dashboard, analytics, meta_analysis, thinking_lens, articles, insight_history, sse, unified_analysis, preferences, public_demo, admin_demo
 from app.db.database import init_db
 
 # 创建 FastAPI 应用
@@ -67,6 +67,12 @@ app.include_router(insight_history.router, tags=["insight-history"])
 app.include_router(sse.router, tags=["sse"])
 app.include_router(unified_analysis.router, tags=["unified-analysis"])
 app.include_router(preferences.router, tags=["preferences"])
+
+# 公开示例文章API（无需认证）
+app.include_router(public_demo.router)
+
+# 管理员示例文章API（需要管理员权限）
+app.include_router(admin_demo.router)
 
 
 @app.get("/")

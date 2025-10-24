@@ -15,7 +15,7 @@ from app.db.database import get_db, SessionLocal
 from app.models.models import Article, AnalysisReport, User
 from app.services.unified_analysis_service import UnifiedAnalysisService
 from app.core.task_manager import task_manager
-from app.utils.auth import get_current_active_user
+from app.utils.auth import get_current_active_user, get_current_user_optional
 
 logger = logging.getLogger(__name__)
 
@@ -294,10 +294,15 @@ async def get_analysis_status(
 @router.get("/api/v1/articles/{article_id}/analysis-report")
 async def get_analysis_report(
     article_id: int,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
     获取文章的完整分析报告
+
+    **权限控制：**
+    - 示例文章（is_demo=True）：任何人都可以访问，无需登录
+    - 普通文章：需要登录且是文章所有者
 
     Returns:
         {
@@ -310,6 +315,20 @@ async def get_analysis_report(
             }
         }
     """
+    # 查询文章和分析报告
+    article = db.query(Article).filter(Article.id == article_id).first()
+
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+
+    # 权限验证：示例文章可公开访问，普通文章需要所有权验证
+    if not article.is_demo:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="需要登录")
+        if article.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权访问此文章")
+
+    # 查询分析报告
     report = db.query(AnalysisReport).filter(
         AnalysisReport.article_id == article_id,
         AnalysisReport.status == 'completed'
